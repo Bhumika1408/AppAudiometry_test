@@ -9,36 +9,29 @@ const likertList = ["Not at all", "Slightly", "Moderately", "Very", "Extremely"]
 
 // Audio
 const AudioContext = window.AudioContext || window.webkitAudioContext;
-let audioCtx;
-let gainNode;
-let allAudioFiles = [
-  'audio/samples/Piano_Original_1.wav',
-  'audio/samples/Piano_TD5_Original_1.wav',
-  'audio/samples/Snare_Original_1.wav'
-  // Add more audio file paths as needed
+const audioCtx = new AudioContext();
+const gainNode = audioCtx.createGain();
+
+// Loaded AudioBuffers
+let buffers = [];
+
+// Audio URL sources
+const instrumentPaths = [
+	['audio/samples/Piano_Original_1.wav'], 
+	// ['audio/samples/Piano_TD10_Original_1.wav'], 
+	['audio/samples/Piano_TD5_Original_1.wav'], 
+	['audio/samples/Snare_Original_1.wav'], 
+	// ['audio/samples/Snare_td10_Original_1.wav'], 
+	['audio/samples/Snare_td5_Original_1.wav'], 
+	['audio/samples/woodblock_Original_1.wav'], 
+	// ['audio/samples/woodblock_td10_Original_1.wav'], 
+	['audio/samples/woodblock_td5_Original_1.wav']
 ];
-
-function initAudioContext() {
-  // Check if audioCtx is already initialized to avoid reinitialization
-  if (!audioCtx) {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new AudioContext();
-    gainNode = audioCtx.createGain();
-
-    // Dynamically set the src attribute for each audio element
-    allAudioFiles.forEach((audioFile, index) => {
-      const audioElement = document.getElementById(`audioElement${index}`);
-      audioElement.src = audioFile;
-    });
-
-    // Call the function to load audio buffers after initializing AudioContext
-    downloadAudioBuffers(allAudioFiles);
-  }
-}
-
-// Call the initAudioContext function when the user clicks a button or performs a gesture
-document.getElementById("startButton").addEventListener("click", initAudioContext);
-
+const ambiencePaths = [
+	['audio/samples/Backgrounds/orchestra.wav'], 
+	['audio/samples/Backgrounds/party.wav'], 
+	// ['audio/samples/Backgrounds/traffic.wav'], 
+];
 
 // Debugging: only generates one audio settings
 // instrumentPaths = [instrumentPaths[0]];
