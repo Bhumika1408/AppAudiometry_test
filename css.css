@@ -1,453 +1,686 @@
-html, body {
-	margin: 0;
-    height: 100%;
-	background-color:hsl(180, 68%, 97%);
-}
+// Requires:
+// - WebAudio
+// - Chart.js
+// - d3
 
-div {
-	height: 100%;
-	position: absolute;
-	width: 100%;
-	font-size: 30px;
-}
+// Constants / Settings
+const pages = ["startscreen", "calibration", "likert", "results"];
+const likertList = ["Not at all", "Slightly", "Moderately", "Very", "Extremely"];
 
-a {
-    color:#30959c;
-    text-decoration: none;
-}
+// Audio
+// Example: main.js file
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+let audioContext;
 
-a:hover,
-a:focus {
-    color:#9ddde1;
-    text-decoration: none;
-    outline: 0;
-}
-
-h1 {
-    display: block;
-    font-size: 1.6em;
-    margin-bottom: 0.3em;
-    margin-top: 0em;
-    font-weight: bold;
-    color: #004d4d;
-    text-shadow: 4px 1px #fff;
-}
-h2 {
-    display: block;
-    font-size: 1.26em;
-    margin-bottom: 0.2em;
-    margin-top: 0em;
-    color: gray;
-}
-h3 {
-    display: block;
-    font-size: 2.5vw;
-    margin-bottom: 0.2em;
-    margin-top: 0em;
-}
-h4 {
-    display: block;
-    font-size: 1.65vw;
-    margin-bottom: 0.15em;
-    margin-top: 0em;
-}
-h6 {
-    display: block;
-    font-size: 0.34em;
-    margin-bottom: 0.04em;
-    margin-top: 0em;
-    float: right;
-    color: rgb(14, 14, 14);
-}
-p {
-    font-size:1.54vw;
-}
-
-h1, h2, h3, h4, h5, h6 {
-    color: #000
-}
-
-.simpleoffset {
-    position:relative;
-    top:0%;
-    height:4%;
-}
-
-.vl {
-    background-color: #fff;
-    background-clip: content-box;
-    width: 2px;
-    height:40%;
-    position:relative;
-}
-
-.centered {
-	text-align:center;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-}
-
-.maininhoud {
-    left: 15%;
-    top: 2.5%;
-    width:70%;
-    height:95%;
-    position: relative;
-}
-
-.title {
-    font-size: 3vw;
-    font-weight: bold;
-    color: rgb(22, 25, 29);
-    text-shadow: 1% 1% #2a3038;
-    width: 54%;
-    left: 3%;
-    margin: 0 auto;
-}
-
-.navbartext {
-    font-size:1.05vw;
-    height:100%;
-    padding-right:1vw;
-    padding-left:1vw;
-}
-
-.navbartextspace {
-    right:1px;
-    width:40vw;
-}
-
-.navbar {
-    top: 0;
-    color: #009999;
-    position: relative;
-    height:75px;
-    /*min-height: 150px;*/
-    background-color: rgb(97, 200, 207);
-    width: 100%;
-}
-
-#logo {
-    top: 7px;
-    left: 7px;
-    height: 30px;
-    width: 30px;
-    /* z-index:-1; */
-}
-
-.sliderlabel {
-    position:absolute;
-    left:0px;
-    width:15%;
-    height:100%;
-}
-
-
-@media only screen and (min-height: 1100px) {
-    .navbar  {
-        height:6.8%;
-    }
-    p {
-    }
-}
-@media only screen and (min-width: 768px) {
-    .range-slider__range {
-        left:15%;
-        width:80%;
-        top:40%;
-        height:20%;
-        position:absolute;
-        -webkit-appearance: none;
-        border-radius: 5px;
-        background: #cecece;
-        border: 1px solid #6b6b6b;
-        outline: none;
-        padding: 0;
-        margin: 0;
-    }
-    .button {
-        width: 15.5%;
-        height: 6vw;
-        font-size: 1.14vw;
+function initAudioContext() {
+    if (!audioContext) {
+        audioContext = new AudioContext();
+        // Your audio setup logic here
     }
 }
 
-.buttonOff {
-	background-color: darkgrey;
+// Triggering AudioContext on button click
+document.addEventListener('DOMContentLoaded', (event) => {
+    const startButton = document.getElementById('startButton');
+
+    if (startButton) {
+        startButton.addEventListener('click', () => {
+            initAudioContext();
+        });
+    } else {
+        console.error("Element with id 'startButton' not found in the DOM");
+    }
+});
+
+
+// Loaded AudioBuffers
+let buffers = [];
+
+// Audio URL sources
+const instrumentPaths = [
+	['audio/samples/Piano_Original_1.wav'], 
+	// ['audio/samples/Piano_TD10_Original_1.wav'], 
+	['audio/samples/Piano_TD5_Original_1.wav'], 
+	['audio/samples/Snare_Original_1.wav'], 
+	// ['audio/samples/Snare_td10_Original_1.wav'], 
+	['audio/samples/Snare_td5_Original_1.wav'], 
+	['audio/samples/woodblock_Original_1.wav'], 
+	// ['audio/samples/woodblock_td10_Original_1.wav'], 
+	['audio/samples/woodblock_td5_Original_1.wav']
+];
+const ambiencePaths = [
+	['audio/samples/Backgrounds/orchestra.wav'], 
+	['audio/samples/Backgrounds/party.wav'], 
+	// ['audio/samples/Backgrounds/traffic.wav'], 
+];
+
+// Debugging: only generates one audio settings
+// instrumentPaths = [instrumentPaths[0]];
+// ambiencePaths = [ambiencePaths[0]];
+// ambiencePaths = [];
+
+// variables used for saving all results
+var numResults = 0;
+var currentLikertButton = null;
+var results = []; 
+
+var instrument = new Sound(0);
+var ambience = new Sound(1);
+var calibrationAudio = null;
+
+// Website state
+var allAudioFilesLoaded = false;
+var currentPage = 0;
+
+// List of all playback rate frequencies used inside the test
+// the amount of values is a multiplication of the number of samples and the amount of random number generated
+const numberOfFrequencyVariations = 5;
+const maximumFrequency = 60;
+const minimumFrequency = 15;
+let __availableFrequencies = [];
+for(let i = 0; i < numberOfFrequencyVariations; i++) 
+{
+	const freq = minimumFrequency + (maximumFrequency - minimumFrequency) / (numberOfFrequencyVariations - 1) * i;
+
+	for(let j = 0; j < instrumentPaths.length; j++) 
+	{
+		__availableFrequencies.push([freq, j]); 
+	}
+}
+const availableFrequencies = d3.shuffle(__availableFrequencies);
+
+
+/*--------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------------*/
+
+// handle all keyboard input (a bit chaotic still)
+var keys = {};
+function handleInput(e) {
+    keys[e.keyCode] = true;
+
+	if(pages[currentPage] == 'startscreen') {
+		switchPage(e);
+	}
+
+    if( pages[currentPage] == 'likert' && (e.keyCode >= 48 && e.keyCode <= 57) || (e.keyCode >= 96 && e.keyCode <= 105) ) {
+        const key =  e.keyCode % 48;
+        
+        if(key > 0 && key <= 5) {
+            const likertButtons = jQuery("#likertbuttons button");
+            likertButtons[key - 1].click();
+        }
+    }
+
+    // Enter key
+    if(e.keyCode == 13) {
+        if(jQuery("#likert")[0].classList.contains("visible")) {
+            nextTest();
+        }
+    }
+}
+window.onkeydown = handleInput;
+window.onkeyup = function(e) { 
+	keys[e.keyCode] = false; 
 }
 
-.buttonOn {
-	background-color: green;
-}
+$(window).resize( function() {
+	if(currentPage == 3) {
+		drawGraph(results);
+	}
+});
 
-.invisible {
-	visibility: hidden;
-	display: none;
-}
+$(window).mousedown( function(){
+    handleInput("mouseclick");
+})
 
-.visible {
-	visibility: visible;
-}
-
-.clearfix {
-	overflow: auto;
-}
-
-.likert {
-	font-size: 40px;
-	left: 5%;
-	width: 90%;
-	position: fixed;
-	/* border: 1px solid #000000 ; */
+// Switch between document states of the test
+// TODO: should just be seperate pages
+function switchPage(e) 
+{
+	if (!allAudioFilesLoaded || currentPage == pages.length) 
+	{
+		return;
+	}		
+		
+	const currentPageDiv = $("#" + pages[currentPage]);
 	
-	display: flex;
-	justify-content: center;
-	align-items: center;
+	if(currentPageDiv.hasClass("visible")) 
+	{
+		const nextPage = $("#" + pages[currentPage + 1]);
+		
+		currentPageDiv.addClass('invisible').removeClass("visible");
+		nextPage.addClass('visible').removeClass("invisible");
+
+		switch (pages[currentPage]) 
+		{
+			case "calibration":
+				calibrationAudio.togglePlayback(document.getElementById("calib_button"), 1);
+				nextTest(true);
+				break;
+			case "likert":
+				drawTable();
+				instrument.togglePlayback(buffers, 1);
+				ambience.togglePlayback(buffers, 1);
+				break;
+			case "startscreen":
+				calibrationAudio.togglePlayback(document.getElementById("calib_button"), 2);
+				break;
+		}
+
+		currentPage++;
+	}
 }
 
-.results {
-	/* margin: 0; */
-	left: 10%;
-	width: 80%;
-	top: 5%;
-	height: 84%;
+$(document).ready(function()
+{
+	jQuery("#startscreen_dynamicText")[0].innerHTML = "please wait till all audio has been loaded";
 	
-	position: relative;
-	/* border: 1px solid #000000 ; */
-	font-size: 15px;
-}
-
-.topleftinbox {
-	left: 2%;
-	top: 2%;
-	height: 46%;
-	width: 42.5%;
-	position: absolute;
-	/* border: 1px solid #000000 ; */
+	const buttons = document.getElementsByTagName('button');
+	for(let i = 0; i < buttons.length; i++) 
+	{
+        if(buttons[i].classList.contains("buttonOn") || buttons[i].classList.contains("buttonOff")) 
+		{
+			const id = "" + buttons[i].id;
+			if(id.substring(0, 7) == "likert") {
+				buttons[i].innerHTML = likertList[buttons[i][8] * 1];
+			}
+		}
+	}
 	
-	display: flex;
-	justify-content: center;
-	align-items: center;
-}
+	// Get all soundbuffers as soon as the document is loaded
+	let allAudioFiles = instrumentPaths.concat(ambiencePaths);
+    allAudioFiles.push(["audio/calibrationFile.ogg"]);
 
-.toprightinbox {
-	right: 2%;
-	top: 2%;
-	width: 42.5%;
-	height: 46%;
-	position: absolute;
-	/* border: 1px solid #000000 ; */
+	downloadAudioBuffers(allAudioFiles);
+});
+
+function soundsLoadedCallback() 
+{
+    const calibBuffer = buffers[buffers.length - 1];
+	calibrationAudio = new SimpleSound(calibBuffer);
+
+    buffers.pop();
+    
+	jQuery("#startscreen_dynamicText")[0].innerHTML = "Press any button or tap/click screen to continue";
+    jQuery("#startscreen_dynamicText")[0].style.color = "Blue";
 	
-	display: flex;
-	justify-content: center;
-	align-items: center;
+	// Configure audio HTML element
+    audioElement = document.querySelector("audio");
+	const track = audioCtx.createMediaElementSource(audioElement);
+	const volumeControl = document.querySelector('[data-action="volume"]');
+	volumeControl.addEventListener('input', function() {
+		gainNode.gain.value = this.value;
+	}, false);
+	track.connect(gainNode).connect(audioCtx.destination);
+	
+	// Start audio - TODO: is this necessary?
+	audioCtx.resume();
 }
 
-.bottomrightinbox {
-	right: 10px;
-	bottom: 10px;
-	position: relative;
-	/* border: 1px solid #000000 ; */
-}
-
-.bottomhalf {
-	right: 2%;;
-	width: 96%;
-	bottom: 2%;
-	height: 46%;
-	position: absolute;
-	/* border: 1px solid #000000 ; */
-}
-
-button {
-	margin: auto;
-    /* width: 18%; */
-	/* height: 100px; */
-	/* text-align: center; */
-	font-size: 23px;
-}
-
-.absolute {
-	height: 100%;
-	position: absolute;
-	width: 100%;
-}
-
-.button
+function downloadAudioBuffers(urls) 
 {
-    text-transform: uppercase;
-    letter-spacing: 1.3px;
-    text-align: center;
-    color: #289dfc;
+	const progressHtmlId = "audioLoadingProcess";
+	if( document.getElementById(progressHtmlId) === null ) 
+	{
+		$( "<div id='" + progressHtmlId + "' class='centered bottomhalf'></div> " ).appendTo( jQuery("#startscreen_dynamicText") );
+	} 
+
+    let loadingProgress = [];
+	let numDone = 0;
     
-    font-family: "Nunito", sans-serif;
-    font-weight: 300;
-    
-    margin: 2px;
-    
-    position: relative; 
-    /*top:0; right:0; bottom:0; left:0;*/
-    
-    padding: 10px;
-    
-    background: #289dfc;
-    border: 1px solid #13578e;
-    border-radius: 4px;
-    color: #FFF;
-    overflow: hidden;
-    
-    transition: all 0.2s;
+	for(let i = 0; i < urls.length; i++) 
+	{
+		let request = new XMLHttpRequest();
+		request.open('GET', window.location.href + "/" + urls[i][0], true);
+		request.responseType = 'arraybuffer';
+		
+		function showProcess(e) 
+		{	
+			// Update loadingProgress array
+			const currentRequestLoadingProgress = e.loaded / e.total * 100 / (2 * instrumentPaths.length);
+			loadingProgress[i] = currentRequestLoadingProgress != NaN ? currentRequestLoadingProgress : 0;
+			
+			const total = loadingProgress.reduce((a, b) => a + b, 0);
+			document.getElementById(progressHtmlId).innerHTML = "loading: " + total + "%";
+		}
+		
+		request.onload = function() 
+		{
+			console.groupCollapsed("HTMLRequest onLoad: " + this.responseURL);
+			
+			const urlIndex = i;
+			const audioData = this.response;
+			audioCtx.decodeAudioData(audioData, function(buffer) 
+			{
+				buffers[urlIndex] = buffer;
+                
+				numDone++;
+				if(numDone < urls.length)
+				{
+					return;
+				}
+
+				console.log("all files loaded!");
+				document.getElementById("audioLoadingProcess").innerHTML = "";
+				allAudioFilesLoaded = true;
+				soundsLoadedCallback(); 
+			}, function(e) {
+				console.log("\tError while decoding audio data: '" + e.error); 
+            });
+			
+            console.groupEnd();
+		}
+        request.addEventListener("error", function (e) {console.log("\trequest-error" + e);});
+		request.addEventListener("abort", function (e) {console.log("\trequest-abort" + e);});
+		request.addEventListener("progress", showProcess);
+		request.addEventListener("load", showProcess );
+
+		request.send();
+	}
 }
 
-.button:hover, .button:active 
+function resetAllToggleableButtons() 
 {
-    text-decoration: none;
-    color: #289dfc;
-    border-color: #289dfc;
-    background: #FFF;
-    
-    box-shadow: 0px 2px 20px rgb(7, 61, 104);
+	const buttons = document.getElementsByTagName('button');
+	for(let i = 0; i < buttons.length; i++) 
+	{
+		buttons[i].classList.add("buttonOff");
+		buttons[i].classList.remove("buttonOn");
+	}
 }
 
-.button span 
+function likertButtonClicked(e, buttonNumber) 
 {
-    display: inline-block;
-    position: relative;
-    padding-right: 30px;
-    padding-left: 30px;
-    
-    transition: padding-right 0.2s;
+	if ( e.classList.contains("buttonOn")) 
+	{
+		resetAllToggleableButtons();
+		e.classList.add("buttonOff");
+		e.classList.remove("buttonOn");
+	} 
+	else 
+	{
+        currentLikertButton = buttonNumber;
+		resetAllToggleableButtons();
+		e.classList.add("buttonOn");
+		e.classList.remove("buttonOff");
+
+		nextTest();
+	}
 }
 
-.button span:after 
+let testCounter = 0;
+function nextTest(forceNewSound = false) 
 {
-    
-    position: absolute;
-    top: 0;
-    right: 0px;
-    opacity: 0;
-    width: 10px;
-    height: 10px;
-    margin-top: -10px;
-    
-    background: rgba(0, 0, 0, 0);
-    border: 3px solid #FFF;
-    border-top: none;
-    border-right: none;
-    
-    transition: opacity 0.5s, top 0.5s, right 0.5s;
-    transform: rotate(-45deg);
+	// forceNewSound makes sure a new sound file is generated even if no rating is yet selected.
+	if(forceNewSound)
+	{
+		console.groupCollapsed("Tests");
+	}
+
+	const buttons = document.getElementsByTagName('button');
+	let likertButtonToggled = false;
+	for(let i = 0; i < buttons.length; i++) {
+		if(buttons[i].id.includes("likert") && buttons[i].classList.contains("buttonOn")) {
+			likertButtonToggled = true;
+			break;
+		}
+	}
+
+	if(likertButtonToggled) 
+	{
+        results.push([currentLikertButton, instrument.frequency, instrument.selectedAudio]);
+        numResults++;
+		resetAllToggleableButtons();
+	}
+
+	// Select a new frequency and instrument and background sound file
+	if(likertButtonToggled || forceNewSound) 
+	{
+		instrument.frequency = availableFrequencies[testCounter][0];
+		const selectedAudioFile = availableFrequencies[testCounter][1];
+		instrument.selectedAudio = selectedAudioFile;
+		ambience.selectedAudio = selectedAudioFile;
+		
+		console.log("New test: frequency=" + instrument.frequency + ", audioFile=" + selectedAudioFile);
+		instrument.play(buffers);
+		ambience.play(buffers);
+		
+		testCounter++; 
+		testCounter %= availableFrequencies.length;
+	}
+
+    jQuery("#testTitle")[0].innerHTML = "Hearing test (" + numResults + "/" + availableFrequencies.length + ")";
+	
+	if(results.length >= availableFrequencies.length) {
+		console.groupEnd();
+		switchPage("show results");
+	}
 }
 
-.button:hover span, .button:active span 
-{
-    padding-right: 30px;
-    padding-left: 30px;
-    
-}
-
-.button:hover span:after, .button:active span:after 
-{
-    transition: opacity 0.5s, top 0.5s, right 0.5s;
-    opacity: 1;
-    border-color: #0C5;
-    right: 0;
-    top: 50%;
-}
-
-.control-volume {
-	width:200px;
-	height:100px;
-}
-
-
-
-*, *:before, *:after {
-    -webkit-box-sizing: border-box;
-    box-sizing: border-box;
-}
-body {
-    font-family: sans-serif;
-    padding: 0px 0px;
-}
-@media (min-width: 600px) {
-    body {
-        padding: 0px;
+function Sound(whichPartOfBuffer) 
+{ 
+	this.part = whichPartOfBuffer;
+	this.source = null;   
+	this.isPlaying = false;
+	this.frequency = null;
+	this.selectedAudio = 0;
+	
+    this.togglePlayback = function(buffers, mode = 3, loop = false) 
+	{
+        // 1=stop, 2=start, 3=toggle
+        if(mode==2) 
+		{
+            this.play(buffers, loop);
+            jQuery("#play_sound_button")[0].innerHTML = "Stop sound";
+        } 
+		else if (mode==1) 
+		{
+            this.stop(loop);
+            jQuery("#play_sound_button")[0].innerHTML = "Start sound";
+        } 
+		else if (mode==3) 
+		{
+			if(this.isPlaying) 
+			{
+				this.stop(loop);
+			} 
+			else 
+			{
+				this.play(buffers, loop);
+			}
+		}
     }
+	
+	this.play = function(buffers, loop = true) 
+	{
+		if(this.source) {this.source.stop();}
+		
+		this.source = audioCtx.createBufferSource();
+		this.source.buffer = buffers[this.selectedAudio + this.part * 0.5 * buffers.length];
+		this.source.loop = loop; 
+		if(this.frequency != null) {
+			this.source.loopEnd = 1 / this.frequency;
+		}
+		this.source.connect(gainNode).connect(audioCtx.destination);
+		this.source.start();
+		this.isPlaying = true;
+
+		jQuery("#play_sound_button")[0].innerHTML = "Stop sound";
+	}
+	
+	this.stop = function() 
+	{
+		jQuery("#play_sound_button")[0].innerHTML = "Start sound";
+		this.source.stop();
+		this.isPlaying = false;
+	}
 }
-.range-slider {
-    width: 800px;
+
+function SimpleSound(audioBuffer, loop = true) 
+{
+	this.audiobuffer = audioBuffer;
+	this.source = null;   
+	this.isPlaying = false;
+    this.loop = loop;
+	
+    this.togglePlayback = function(e, mode = 3) 
+	{
+        // 1=stop, 2=start, 3=toggle
+        
+        if(mode==2) 
+		{
+            this.play();
+            e.innerHTML = "Stop sound";
+        } 
+		else if (mode==1) 
+		{
+            this.stop();
+            e.innerHTML = "Start sound";
+        } 
+		else if (mode==3) 
+		{
+			if(this.isPlaying) 
+			{
+				this.stop();
+				e.innerHTML = "Start sound";
+			} 
+			else 
+			{
+				this.play();
+				e.innerHTML = "Stop sound";
+			}
+		}
+    }
+	
+	this.play = function() 
+	{
+		if(this.source != null) {this.source.stop();}
+		this.source = audioCtx.createBufferSource();
+        
+        this.source.buffer = this.audiobuffer;
+		this.source.loop = this.loop; 
+        this.source.endLoop = this.audiobuffer.duration;
+		this.source.connect(gainNode).connect(audioCtx.destination);
+		this.source.start();
+		this.isPlaying = true;
+	}
+	
+	this.stop = function() 
+	{
+		this.source.stop();
+		this.isPlaying = false;
+	}
 }
-.range-slider__range::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 20px;
-    height: 40px;
-    border-radius: 20%;
-    background: #289dfc;
-    cursor: pointer;
-    border: 1px solid #6b6b6b;
-    -webkit-transition: background 0.15s ease-in-out;
-    -o-transition: background 0.15s ease-in-out;
-    transition: background 0.15s ease-in-out;
+
+function drawTable() {
+
+    data = "All data: ["
+    for (var i = 0; i < results.length; i++) {
+        // data += "("+i+") ";
+        data += ("["+results[i][1]).substring(0,4)+", ";
+        data += "\""+likertList[results[i][0]] + "\", ";
+		data += ""+results[i][2]+"], ";
+    }
+    data += "]"
+    
+    //console.log(data);
+    jQuery("#how_to_change_text_in_html")[0].innerHTML = data;
+    
+    /////////////////////////////////////////////////////////
+
+    dataForGraph = [];
+    for(var v = 0; v < likertList.length; v++) {
+        count = 0;
+        addedFrequencies = 0;
+        for(var i = 0; i < results.length; i++) {
+            if(results[i][0] == v) {
+                addedFrequencies += results[i][1];
+                count++;
+            }
+        }
+        if(count != 0) {
+            dataForGraph.push(addedFrequencies/count);
+        } else {
+            dataForGraph.push(0);
+        }
+    }
+	
+	/////////////////////////////////////////////////
+    
+    var body = document.getElementById("results_table");
+    var tbl = document.createElement("table");
+    var tblBody = document.createElement("tbody");
+
+    for (var i = 0; i < likertList.length; i++) {
+        var row = document.createElement("tr");
+
+        var cell = document.createElement("td");
+        var cellText = document.createTextNode((""+dataForGraph[i]).substring(0,4)+"Hz");
+        cell.appendChild(cellText);
+        row.appendChild(cell);
+        
+        var cell = document.createElement("td");
+        var cellText = document.createTextNode(likertList[i]);
+        cell.appendChild(cellText);
+        row.appendChild(cell);
+		
+        tblBody.appendChild(row);
+    }
+
+    tbl.appendChild(tblBody);
+    body.appendChild(tbl);
+    tbl.setAttribute("border", "2");
+	
+	
+    drawGraph(results);
 }
-.range-slider__range::-webkit-slider-thumb:hover {
-    background: #efa51a;
-}
-.range-slider__range:active::-webkit-slider-thumb {
-    background: #efa51a;
-}
-.range-slider__range::-moz-range-thumb {
-    width: 2.0vw;
-    height: 2.0vw;
-    border: 0;
-    border-radius: 50%;
-    background: #289dfc;
-    cursor: pointer;
-    -webkit-transition: background 0.15s ease-in-out;
-    -o-transition: background 0.15s ease-in-out;
-    transition: background 0.15s ease-in-out;
-}
-.range-slider__range::-moz-range-thumb:hover {
-    background: #efa51a;
-}
-.range-slider__range:active::-moz-range-thumb {
-    background: #efa51a;
-}
-.range-slider__range:focus::-webkit-slider-thumb {
-    -webkit-box-shadow: 0 0 0 3px #fff, 0 0 0 6px #efa51a;
-    box-shadow: 0 0 0 3px #fff, 0 0 0 6px #efa51a;
-}
-.range-slider__value {
-    display: block;
-    float: right;
-    margin-left: 50px;
-    position: relative;
-    width: 100px;
-    color: #fff;
-    line-height: 20px;
-    text-align: center;
-    border-radius: 3px;
-    background: #289dfc;
-    padding: 5px 10px;
-    margin-left: 8px;
-}
-.range-slider__value:after {
-    position: absolute;
-    top: 8px;
-    left: -7px;
-    width: 0;
-    height: 0;
-    border-top: 7px solid transparent;
-    border-right: 7px solid #289dfc;
-    border-bottom: 7px solid transparent;
-    content: '';
-}
-::-moz-range-track {
-    background: #cecece;
-    border: 0;
-}
-input::-moz-focus-inner, input::-moz-focus-outer {
-    border: 0;
+
+// TODO:
+// create data elements outside of drawGraph, make drawGraphs argument MDArray. (example: [[data], [data2], [data3]])
+// use forloop to iterate through data and to show in graph. 
+//      All this will make sure this drawGraph object is able to draw multiple graphs.
+//      It will probably also need params like: dataLabels, dataColours='def', x_axis_label='x', y_axis_label='x', fontsize=20, title='graph', xRange='def' [0,4], yRange='def'[0,4], xTickscallback='def', yTickscallback='def', xsteps='def', ysteps='def'
+// for this example it would be:
+//      drawGraph([[datPia],[datSna],[datWoo],[allData]], ["Piano","Snare","Woodblock","Average"], ['#8789ff','#c1f9ff','#ffc1c1','#000000'], 'Playback frequency', 'Distinguishability', 20, 'Distinguishability of individual notes with different playback frequencies', 'def', [0,4], function(value, index, values) {return value+"Hz";}, function(value, index, values) {return likertList[Math.floor(value)];}, 'def', 1);
+function drawGraph(dat) {
+	// dat[0] = rating, dat[1] = freq, dat[2] = instrument
+	var accuracy = 4;
+	//console.log(dat);
+	datPia = [];
+	datSna = [];
+	datWoo = [];
+	allData = [];
+	
+	// dat[0] = freq, dat[1] = rating
+	for(var i = 0; i < dat.length; i++) {
+		var dataP = [dat[i][1], dat[i][0]];
+		switch (dat[i][2]) {
+			case 0:
+				datPia.push(dataP);
+				break;
+			case 1:
+				datSna.push(dataP);
+				break;
+			case 2:
+				datWoo.push(dataP);
+				break;
+		}
+		allData.push(dataP);
+	}
+	
+	var getAveraged = function(data) {
+		var freqRange = maximumFrequency-minimumFrequency;
+		var freqIncr = freqRange / accuracy;
+		newData = [];
+		for(var v = 0; v < accuracy; v++) {
+			var freq = minimumFrequency+0.5*freqIncr*(v+1);
+			count = 0;
+			addedResults = 0;
+			for(var i = 0; i < data.length; i++) {
+				if(data[i][0] >= freq && data[i][0] < freq+freqIncr) {
+					addedResults += data[i][1];
+					count++;
+				}
+			}
+			console.log(addedResults);
+			newData.push(addedResults/count);
+		}
+		return newData;
+	}
+	
+	allData = getAveraged(allData);
+	datPia = getAveraged(datPia);
+	datSna = getAveraged(datSna);
+	datWoo = getAveraged(datWoo);
+	
+	console.log(allData);
+	console.log(datPia);
+	console.log(datSna);
+	console.log(datWoo);
+	
+	lab = [];
+	for(var i = 0; i < accuracy; i++) {
+		var freqIncr = (maximumFrequency-minimumFrequency)/(accuracy-1);
+		lab.push(minimumFrequency+freqIncr*i);
+	}
+	console.log(lab);
+	
+    scaleY = $(window).height() / 1080;
+    scaleX = $(window).width() / 1920;
+    scale = Math.min(scaleX, scaleY);
+    console.log("scale = "+scale);
+    
+    //var Chart = require('chart.js'); 
+	Chart.defaults.global.elements.line.fill = false;
+	Chart.defaults.global.defaultFontSize = scale*25;
+    var c = new Chart(document.getElementById("myChart"), {
+        type: 'line',
+        data: {
+            labels: lab,
+            datasets: [{
+                label: 'Piano',
+                data: datPia,
+				borderColor: "#301934",
+                borderWidth: scale*4
+            }, {
+                label: 'Snare',
+                data: datSna,
+				borderColor: "#301934",
+                borderWidth: scale*4
+            }, {
+                label: 'Woodblock',
+                data: datWoo,
+				borderColor: "	#023020",
+                borderWidth: scale*4
+            }, {
+                label: 'Average',
+                data: allData,
+				borderColor: "#000000",
+                borderWidth: scale*6
+            }
+			]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+					scaleLabel: {
+						display: true,
+						labelString: 'Distinguishability'
+					  },
+                    ticks: {
+                        beginAtZero:true,
+						min: 0, // minimum value
+						max: 4, // maximum value
+						stepSize: 1,
+						callback: function(value, index, values) {
+							return likertList[Math.floor(value)];
+						},
+						fontSize: scale*15
+                    },
+                }],
+				xAxes: [{
+					scaleLabel: {
+						display: true,
+						labelString: 'Playback frequency'
+					  },
+                    ticks: {               
+						callback: function(value, index, values) {
+							return value.toFixed(1)+"Hz";
+						},
+						fontSize: scale*15
+                    },
+                }]
+            },
+			title: {
+				display: true,
+				text: 'Distinguishability of individual notes with different playback frequencies',
+				fontSize: scale*25
+			},
+			legend: {
+				fontSize: scale*15
+			}
+        }
+    });
+	console.log(c);
+	document.getElementById("myChart").style.backgroundColor = 'rgba(255,255,255,255)';
 }
