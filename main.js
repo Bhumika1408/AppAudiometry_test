@@ -8,30 +8,9 @@ const pages = ["startscreen", "calibration", "likert", "results"];
 const likertList = ["Not at all", "Slightly", "Moderately", "Very", "Extremely"];
 
 // Audio
-// Example: main.js file
 const AudioContext = window.AudioContext || window.webkitAudioContext;
-let audioContext;
-
-function initAudioContext() {
-    if (!audioContext) {
-        audioContext = new AudioContext();
-        // Your audio setup logic here
-    }
-}
-
-// Triggering AudioContext on button click
-document.addEventListener('DOMContentLoaded', (event) => {
-    const startButton = document.getElementById('startButton');
-
-    if (startButton) {
-        startButton.addEventListener('click', () => {
-            initAudioContext();
-        });
-    } else {
-        console.error("Element with id 'startButton' not found in the DOM");
-    }
-});
-
+const audioCtx = new AudioContext();
+const gainNode = audioCtx.createGain();
 
 // Loaded AudioBuffers
 let buffers = [];
@@ -620,17 +599,17 @@ function drawGraph(dat) {
             datasets: [{
                 label: 'Piano',
                 data: datPia,
-				borderColor: "#301934",
+				borderColor: "#8789ff",
                 borderWidth: scale*4
             }, {
                 label: 'Snare',
                 data: datSna,
-				borderColor: "#191970",
+				borderColor: "#c1f9ff",
                 borderWidth: scale*4
             }, {
                 label: 'Woodblock',
                 data: datWoo,
-				borderColor: "	#023020",
+				borderColor: "#ffc1c1",
                 borderWidth: scale*4
             }, {
                 label: 'Average',
